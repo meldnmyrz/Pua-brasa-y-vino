@@ -12,8 +12,8 @@ import Features11 from '../components/Features11';
 
 export default function HomePage({ onOpenItemModal, onAddToCart }) {
   const [showBackToTop, setShowBackToTop] = useState(false);
-  const [scrollUnlocked, setScrollUnlocked] = useState(false);
-  const firstScrollBlockedRef = useRef(false);
+  const [textVisible, setTextVisible] = useState(false);
+  const textVisibleRef = useRef(false);
   const isHoldingFirstSwipeRef = useRef(false);
   const isHoldingFirstWheelRef = useRef(false);
   const wheelDebounceTimerRef = useRef(null);
@@ -28,38 +28,38 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
     
     const handleScroll = () => {
       setShowBackToTop(window.scrollY > 400);
-      if (window.scrollY > 50) {
-        firstScrollBlockedRef.current = true;
-        setScrollUnlocked(true);
+      if (window.scrollY > 40) {
+        textVisibleRef.current = true;
+        setTextVisible(true);
       }
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
 
-    // En el primer scroll/deslizamiento hacia abajo, DETENEMOS el scroll para no bajar la pantalla.
-    // Se requiere un segundo scroll para poder descender a las demás secciones.
+    // Gesto 1: Al hacer scroll aparece el texto centrado y se DETIENE la pantalla ahí.
+    // Gesto 2: Al volver a hacer scroll, ahora sí baja al resto del sitio.
     const handleWheel = (e) => {
       if (window.scrollY <= 20) {
-        // Intento 1: se detiene el scroll completamente
-        if (!firstScrollBlockedRef.current && e.deltaY > 0) {
+        // Si el texto aún no está visible y rueda hacia abajo:
+        if (!textVisibleRef.current && e.deltaY > 0) {
           e.preventDefault();
-          firstScrollBlockedRef.current = true;
+          textVisibleRef.current = true;
+          setTextVisible(true);
           isHoldingFirstWheelRef.current = true;
-          setScrollUnlocked(true);
           
           clearTimeout(wheelDebounceTimerRef.current);
           wheelDebounceTimerRef.current = setTimeout(() => {
             isHoldingFirstWheelRef.current = false;
-          }, 600);
+          }, 650);
           return;
         }
 
-        // Mientras dure el impulso del primer intento, la pantalla se queda detenida
+        // Mientras dure el impulso del primer scroll, la pantalla se queda detenida
         if (isHoldingFirstWheelRef.current && e.deltaY > 0) {
           e.preventDefault();
           clearTimeout(wheelDebounceTimerRef.current);
           wheelDebounceTimerRef.current = setTimeout(() => {
             isHoldingFirstWheelRef.current = false;
-          }, 600);
+          }, 650);
           return;
         }
       }
@@ -77,16 +77,16 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
       const deltaY = touchStartYRef.current - touchY; // > 0 indica deslizar hacia abajo
 
       if (window.scrollY <= 20) {
-        // Intento 1: se detiene el swipe para no bajar la pantalla
-        if (!firstScrollBlockedRef.current && deltaY > 10) {
+        // En el primer swipe: aparece el texto centrado y SE DETIENE la pantalla ahí
+        if (!textVisibleRef.current && deltaY > 10) {
           if (e.cancelable) e.preventDefault();
-          firstScrollBlockedRef.current = true;
+          textVisibleRef.current = true;
+          setTextVisible(true);
           isHoldingFirstSwipeRef.current = true;
-          setScrollUnlocked(true);
           return;
         }
 
-        // Mientras no levante el dedo del primer swipe, la pantalla no baja
+        // Mientras siga arrastrando el dedo en este primer swipe, la pantalla no baja
         if (isHoldingFirstSwipeRef.current) {
           if (e.cancelable) e.preventDefault();
           return;
@@ -95,7 +95,7 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
     };
 
     const handleTouchEnd = () => {
-      // Al levantar el dedo se libera el primer intento; el siguiente swipe ahora sí baja
+      // Al soltar el dedo termina el primer swipe. El siguiente swipe ahora sí baja
       isHoldingFirstSwipeRef.current = false;
     };
 
@@ -136,10 +136,15 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleScrollDown = () => {
-    const el = document.getElementById('features-section');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
+  const handleExploreClick = () => {
+    if (!textVisibleRef.current) {
+      textVisibleRef.current = true;
+      setTextVisible(true);
+    } else {
+      const el = document.getElementById('features-section');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
     }
   };
 
@@ -217,11 +222,11 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
       
       {/* ============================================================
           01 HERO STAGE: SOLO VIDEO 2 (PLATILLOS EN LOOP CONTINUO)
-          EL TEXTO QUEDA EN EL HEADER, SIN ESPACIO NEGRO Y DETIENE SCROLL
+          EL TEXTO APARECE CENTRADO AL HACER SCROLL Y DETIENE LA PANTALLA
          ============================================================ */}
       <section 
         ref={heroRef} 
-        className="relative w-full h-screen min-h-[100dvh] z-10 bg-black flex flex-col justify-between items-center overflow-hidden"
+        className="relative w-full h-screen min-h-[100dvh] z-10 bg-black flex flex-col justify-center items-center overflow-hidden px-6 sm:px-12"
       >
         {/* BACKGROUND VIDEO: EXCLUSIVAMENTE VIDEO 2 (PLATILLOS EN LOOP CONTINUO, SIN FUEGO NI LOGO) */}
         <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
@@ -281,36 +286,45 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
           </video>
         </div>
 
-        {/* GRADIENTE SUAVE SUPERIOR E INFERIOR PARA MAXIMIZAR LEGIBILIDAD DEL TEXTO */}
+        {/* GRADIENTE RADIAL SUAVE: DA CONTRASTE AL APARECER EL TEXTO CENTRADO */}
         <div 
-          className="absolute inset-0 pointer-events-none"
+          className={`absolute inset-0 pointer-events-none transition-opacity duration-700 ${
+            textVisible ? 'opacity-100' : 'opacity-20'
+          }`}
           style={{
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 45%, rgba(0,0,0,0.25) 70%, rgba(0,0,0,0.85) 100%)'
+            background: 'radial-gradient(circle at center, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.8) 60%, rgba(0,0,0,0.92) 100%)'
           }}
         />
 
-        {/* TEXTO EN EL HEADER (HASTA ARRIBA): SIEMPRE VISIBLE */}
-        <div className="relative z-20 w-full max-w-4xl mx-auto px-6 sm:px-10 text-center pt-24 sm:pt-28 md:pt-32 pointer-events-none opacity-100 translate-y-0">
-          <span className="text-xs sm:text-sm font-mono text-[#c49a4a] tracking-[0.28em] uppercase block font-semibold drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] mb-2">
+        {/* TEXTO CENTRADO: APARECE AL HACER SCROLL Y DETIENE LA PANTALLA */}
+        <div 
+          className={`relative z-20 max-w-4xl mx-auto text-center transition-all duration-700 ease-out pointer-events-none ${
+            textVisible 
+              ? 'opacity-100 scale-100 translate-y-0' 
+              : 'opacity-0 scale-95 translate-y-6'
+          }`}
+        >
+          <span className="text-xs sm:text-sm font-mono text-[#c49a4a] tracking-[0.28em] uppercase block font-semibold drop-shadow-[0_2px_12px_rgba(0,0,0,0.98)] mb-3 sm:mb-4">
             EL ARTE DE LA BRASA
           </span>
           
-          <h1 className="text-2xl sm:text-4xl md:text-5xl font-sf-pro-display font-semibold tracking-[-0.02em] text-[#ffffff] leading-[1.18] drop-shadow-[0_4px_24px_rgba(0,0,0,0.98)] mb-3">
-            EL RITUAL DEL FUEGO & LA CAVA.
+          <h1 className="text-3xl sm:text-5xl md:text-6xl font-sf-pro-display font-semibold tracking-[-0.02em] text-[#ffffff] leading-[1.14] drop-shadow-[0_4px_28px_rgba(0,0,0,0.99)] mb-4 sm:mb-5">
+            EL RITUAL DEL <br className="hidden sm:block" />
+            <span className="text-[#ffffff]">FUEGO & LA CAVA.</span>
           </h1>
           
-          <p className="text-xs sm:text-sm md:text-base text-[#f5f5f7] max-w-2xl mx-auto leading-relaxed font-normal drop-shadow-[0_2px_16px_rgba(0,0,0,0.98)]">
+          <p className="text-sm sm:text-base md:text-lg text-[#f5f5f7] max-w-2xl mx-auto leading-relaxed font-normal drop-shadow-[0_2px_18px_rgba(0,0,0,0.99)]">
             Cortes Angus Prime madurados en seco durante 45 días, sellados al fuego directo de encino a 600°C. Acompañados por una cava de más de 500 etiquetas internacionales curadas por sommelier.
           </p>
         </div>
 
         {/* DESLIZA PARA EXPLORAR / DESLIZA PARA CONOCER MÁS */}
         <div 
-          onClick={handleScrollDown}
-          className="relative z-20 pb-8 flex flex-col items-center justify-center gap-2 cursor-pointer select-none group transition-all duration-500"
+          onClick={handleExploreClick}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center justify-center gap-2 cursor-pointer select-none group transition-all duration-500"
         >
           <span className="text-[11px] font-sans uppercase tracking-[0.28em] text-[#d4d3c9] font-medium drop-shadow-[0_2px_8px_rgba(0,0,0,0.95)] group-hover:text-white transition-colors">
-            {scrollUnlocked ? 'DESLIZA PARA CONOCER MÁS' : 'DESLIZA PARA EXPLORAR'}
+            {textVisible ? 'DESLIZA PARA CONOCER MÁS' : 'DESLIZA PARA EXPLORAR'}
           </span>
           <div className="w-8 h-8 rounded-full border border-white/25 bg-black/50 backdrop-blur-md flex items-center justify-center group-hover:border-[#c49a4a] group-hover:scale-110 transition-all shadow-xl animate-bounce">
             <ChevronDown className="w-4 h-4 text-white group-hover:text-[#c49a4a] transition-colors" />
