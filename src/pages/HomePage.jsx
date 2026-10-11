@@ -14,9 +14,9 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [textVisible, setTextVisible] = useState(false);
   const textVisibleRef = useRef(false);
-  const isHoldingFirstSwipeRef = useRef(false);
-  const isHoldingFirstWheelRef = useRef(false);
-  const wheelDebounceTimerRef = useRef(null);
+  const canScrollDownRef = useRef(false);
+  const firstSwipeDoneRef = useRef(false);
+  const wheelLockTimerRef = useRef(null);
   const touchStartYRef = useRef(0);
   const heroRef = useRef(null);
   const mobilePlatillosRef = useRef(null);
@@ -28,9 +28,10 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
     
     const handleScroll = () => {
       setShowBackToTop(window.scrollY > 400);
-      if (window.scrollY > 40) {
+      if (window.scrollY > 100) {
         textVisibleRef.current = true;
         setTextVisible(true);
+        canScrollDownRef.current = true;
       }
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -38,29 +39,20 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
     // Gesto 1: Al hacer scroll aparece el texto centrado y se DETIENE la pantalla ahí.
     // Gesto 2: Al volver a hacer scroll, ahora sí baja al resto del sitio.
     const handleWheel = (e) => {
-      if (window.scrollY <= 20) {
-        // Si el texto aún no está visible y rueda hacia abajo:
-        if (!textVisibleRef.current && e.deltaY > 0) {
+      if (window.scrollY <= 20 && !canScrollDownRef.current) {
+        if (e.deltaY > 0) {
           e.preventDefault();
-          textVisibleRef.current = true;
-          setTextVisible(true);
-          isHoldingFirstWheelRef.current = true;
-          
-          clearTimeout(wheelDebounceTimerRef.current);
-          wheelDebounceTimerRef.current = setTimeout(() => {
-            isHoldingFirstWheelRef.current = false;
-          }, 650);
-          return;
-        }
+          window.scrollTo(0, 0);
 
-        // Mientras dure el impulso del primer scroll, la pantalla se queda detenida
-        if (isHoldingFirstWheelRef.current && e.deltaY > 0) {
-          e.preventDefault();
-          clearTimeout(wheelDebounceTimerRef.current);
-          wheelDebounceTimerRef.current = setTimeout(() => {
-            isHoldingFirstWheelRef.current = false;
-          }, 650);
-          return;
+          if (!textVisibleRef.current) {
+            textVisibleRef.current = true;
+            setTextVisible(true);
+          }
+
+          clearTimeout(wheelLockTimerRef.current);
+          wheelLockTimerRef.current = setTimeout(() => {
+            canScrollDownRef.current = true;
+          }, 700);
         }
       }
     };
@@ -76,27 +68,26 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
       const touchY = e.touches[0].clientY;
       const deltaY = touchStartYRef.current - touchY; // > 0 indica deslizar hacia abajo
 
-      if (window.scrollY <= 20) {
-        // En el primer swipe: aparece el texto centrado y SE DETIENE la pantalla ahí
-        if (!textVisibleRef.current && deltaY > 10) {
+      if (window.scrollY <= 20 && !canScrollDownRef.current) {
+        if (deltaY > 8) {
           if (e.cancelable) e.preventDefault();
-          textVisibleRef.current = true;
-          setTextVisible(true);
-          isHoldingFirstSwipeRef.current = true;
-          return;
-        }
+          window.scrollTo(0, 0);
 
-        // Mientras siga arrastrando el dedo en este primer swipe, la pantalla no baja
-        if (isHoldingFirstSwipeRef.current) {
-          if (e.cancelable) e.preventDefault();
+          if (!textVisibleRef.current) {
+            textVisibleRef.current = true;
+            setTextVisible(true);
+          }
+          firstSwipeDoneRef.current = true;
           return;
         }
       }
     };
 
     const handleTouchEnd = () => {
-      // Al soltar el dedo termina el primer swipe. El siguiente swipe ahora sí baja
-      isHoldingFirstSwipeRef.current = false;
+      // Al soltar el dedo tras revelar el texto, el siguiente swipe sí bajará a lo demás
+      if (textVisibleRef.current && firstSwipeDoneRef.current) {
+        canScrollDownRef.current = true;
+      }
     };
 
     window.addEventListener('wheel', handleWheel, { passive: false });
@@ -128,7 +119,7 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchstart', handleFirstTouch);
-      clearTimeout(wheelDebounceTimerRef.current);
+      clearTimeout(wheelLockTimerRef.current);
     };
   }, []);
 
@@ -140,6 +131,7 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
     if (!textVisibleRef.current) {
       textVisibleRef.current = true;
       setTextVisible(true);
+      canScrollDownRef.current = true;
     } else {
       const el = document.getElementById('features-section');
       if (el) {
@@ -304,10 +296,6 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
               : 'opacity-0 scale-95 translate-y-6'
           }`}
         >
-          <span className="text-xs sm:text-sm font-mono text-[#c49a4a] tracking-[0.28em] uppercase block font-semibold drop-shadow-[0_2px_12px_rgba(0,0,0,0.98)] mb-3 sm:mb-4">
-            EL ARTE DE LA BRASA
-          </span>
-          
           <h1 className="text-3xl sm:text-5xl md:text-6xl font-sf-pro-display font-semibold tracking-[-0.02em] text-[#ffffff] leading-[1.14] drop-shadow-[0_4px_28px_rgba(0,0,0,0.99)] mb-4 sm:mb-5">
             EL RITUAL DEL <br className="hidden sm:block" />
             <span className="text-[#ffffff]">FUEGO & LA CAVA.</span>
