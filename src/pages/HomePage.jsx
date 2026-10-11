@@ -12,12 +12,11 @@ import Features11 from '../components/Features11';
 
 export default function HomePage({ onOpenItemModal, onAddToCart }) {
   const [showBackToTop, setShowBackToTop] = useState(false);
-  const [textRevealed, setTextRevealed] = useState(false);
-  const textRevealedRef = useRef(false);
-  textRevealedRef.current = textRevealed;
-  const touchRevealingGestureRef = useRef(false);
-  const wheelRevealingGestureRef = useRef(false);
-  const wheelIdleTimerRef = useRef(null);
+  const [scrollUnlocked, setScrollUnlocked] = useState(false);
+  const firstScrollBlockedRef = useRef(false);
+  const isHoldingFirstSwipeRef = useRef(false);
+  const isHoldingFirstWheelRef = useRef(false);
+  const wheelDebounceTimerRef = useRef(null);
   const touchStartYRef = useRef(0);
   const heroRef = useRef(null);
   const mobilePlatillosRef = useRef(null);
@@ -29,33 +28,37 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
     
     const handleScroll = () => {
       setShowBackToTop(window.scrollY > 400);
+      if (window.scrollY > 50) {
+        firstScrollBlockedRef.current = true;
+        setScrollUnlocked(true);
+      }
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
 
-    // Detener el scroll en el primer intento para mostrar el texto en el header.
-    // Se requiere un SEGUNDO scroll/deslizamiento para bajar al resto del sitio.
+    // En el primer scroll/deslizamiento hacia abajo, DETENEMOS el scroll para no bajar la pantalla.
+    // Se requiere un segundo scroll para poder descender a las demás secciones.
     const handleWheel = (e) => {
       if (window.scrollY <= 20) {
-        // Gesto 1: Revela el texto y bloquea todo este primer giro
-        if (!textRevealedRef.current && e.deltaY > 0) {
+        // Intento 1: se detiene el scroll completamente
+        if (!firstScrollBlockedRef.current && e.deltaY > 0) {
           e.preventDefault();
-          textRevealedRef.current = true;
-          setTextRevealed(true);
-          wheelRevealingGestureRef.current = true;
+          firstScrollBlockedRef.current = true;
+          isHoldingFirstWheelRef.current = true;
+          setScrollUnlocked(true);
           
-          clearTimeout(wheelIdleTimerRef.current);
-          wheelIdleTimerRef.current = setTimeout(() => {
-            wheelRevealingGestureRef.current = false;
+          clearTimeout(wheelDebounceTimerRef.current);
+          wheelDebounceTimerRef.current = setTimeout(() => {
+            isHoldingFirstWheelRef.current = false;
           }, 600);
           return;
         }
 
-        // Mientras siga la inercia del primer giro, se detiene el scroll
-        if (wheelRevealingGestureRef.current && e.deltaY > 0) {
+        // Mientras dure el impulso del primer intento, la pantalla se queda detenida
+        if (isHoldingFirstWheelRef.current && e.deltaY > 0) {
           e.preventDefault();
-          clearTimeout(wheelIdleTimerRef.current);
-          wheelIdleTimerRef.current = setTimeout(() => {
-            wheelRevealingGestureRef.current = false;
+          clearTimeout(wheelDebounceTimerRef.current);
+          wheelDebounceTimerRef.current = setTimeout(() => {
+            isHoldingFirstWheelRef.current = false;
           }, 600);
           return;
         }
@@ -74,18 +77,17 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
       const deltaY = touchStartYRef.current - touchY; // > 0 indica deslizar hacia abajo
 
       if (window.scrollY <= 20) {
-        // Gesto 1: El primer swipe solo revela el texto y DETIENE el scroll
-        if (!textRevealedRef.current && deltaY > 10) {
+        // Intento 1: se detiene el swipe para no bajar la pantalla
+        if (!firstScrollBlockedRef.current && deltaY > 10) {
           if (e.cancelable) e.preventDefault();
-          textRevealedRef.current = true;
-          setTextRevealed(true);
-          touchRevealingGestureRef.current = true;
+          firstScrollBlockedRef.current = true;
+          isHoldingFirstSwipeRef.current = true;
+          setScrollUnlocked(true);
           return;
         }
 
-        // Si este touchmove es continuación del PRIMER swipe que reveló el texto,
-        // se bloquea completamente para que NO baje en este intento.
-        if (touchRevealingGestureRef.current) {
+        // Mientras no levante el dedo del primer swipe, la pantalla no baja
+        if (isHoldingFirstSwipeRef.current) {
           if (e.cancelable) e.preventDefault();
           return;
         }
@@ -93,8 +95,8 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
     };
 
     const handleTouchEnd = () => {
-      // Al levantar el dedo termina el primer gesto. El siguiente swipe sí bajará a lo demás.
-      touchRevealingGestureRef.current = false;
+      // Al levantar el dedo se libera el primer intento; el siguiente swipe ahora sí baja
+      isHoldingFirstSwipeRef.current = false;
     };
 
     window.addEventListener('wheel', handleWheel, { passive: false });
@@ -126,7 +128,7 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchstart', handleFirstTouch);
-      clearTimeout(wheelIdleTimerRef.current);
+      clearTimeout(wheelDebounceTimerRef.current);
     };
   }, []);
 
@@ -135,14 +137,9 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
   };
 
   const handleScrollDown = () => {
-    if (!textRevealedRef.current) {
-      textRevealedRef.current = true;
-      setTextRevealed(true);
-    } else {
-      const el = document.getElementById('features-section');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
-      }
+    const el = document.getElementById('features-section');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
@@ -286,22 +283,14 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
 
         {/* GRADIENTE SUAVE SUPERIOR E INFERIOR PARA MAXIMIZAR LEGIBILIDAD DEL TEXTO */}
         <div 
-          className={`absolute inset-0 pointer-events-none transition-opacity duration-700 ${
-            textRevealed ? 'opacity-100' : 'opacity-35'
-          }`}
+          className="absolute inset-0 pointer-events-none"
           style={{
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 45%, rgba(0,0,0,0.2) 70%, rgba(0,0,0,0.85) 100%)'
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 45%, rgba(0,0,0,0.25) 70%, rgba(0,0,0,0.85) 100%)'
           }}
         />
 
-        {/* TEXTO EN EL HEADER (HASTA ARRIBA): APARECE AL HACER SCROLL Y DETIENE LA BAJADA */}
-        <div 
-          className={`relative z-20 w-full max-w-4xl mx-auto px-6 sm:px-10 text-center pt-24 sm:pt-28 md:pt-32 transition-all duration-700 ease-out pointer-events-none ${
-            textRevealed 
-              ? 'opacity-100 translate-y-0 scale-100' 
-              : 'opacity-0 -translate-y-5 scale-95'
-          }`}
-        >
+        {/* TEXTO EN EL HEADER (HASTA ARRIBA): SIEMPRE VISIBLE */}
+        <div className="relative z-20 w-full max-w-4xl mx-auto px-6 sm:px-10 text-center pt-24 sm:pt-28 md:pt-32 pointer-events-none opacity-100 translate-y-0">
           <span className="text-xs sm:text-sm font-mono text-[#c49a4a] tracking-[0.28em] uppercase block font-semibold drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] mb-2">
             EL ARTE DE LA BRASA
           </span>
@@ -315,13 +304,13 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
           </p>
         </div>
 
-        {/* DESLIZA PARA EXPLORAR / EXPLORAR EL RESTORÁN */}
+        {/* DESLIZA PARA EXPLORAR / DESLIZA PARA CONOCER MÁS */}
         <div 
           onClick={handleScrollDown}
           className="relative z-20 pb-8 flex flex-col items-center justify-center gap-2 cursor-pointer select-none group transition-all duration-500"
         >
           <span className="text-[11px] font-sans uppercase tracking-[0.28em] text-[#d4d3c9] font-medium drop-shadow-[0_2px_8px_rgba(0,0,0,0.95)] group-hover:text-white transition-colors">
-            {textRevealed ? 'EXPLORAR EL RESTORÁN' : 'DESLIZA PARA EXPLORAR'}
+            {scrollUnlocked ? 'DESLIZA PARA CONOCER MÁS' : 'DESLIZA PARA EXPLORAR'}
           </span>
           <div className="w-8 h-8 rounded-full border border-white/25 bg-black/50 backdrop-blur-md flex items-center justify-center group-hover:border-[#c49a4a] group-hover:scale-110 transition-all shadow-xl animate-bounce">
             <ChevronDown className="w-4 h-4 text-white group-hover:text-[#c49a4a] transition-colors" />
