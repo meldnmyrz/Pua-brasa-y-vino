@@ -12,11 +12,8 @@ import Features11 from '../components/Features11';
 
 export default function HomePage({ onOpenItemModal, onAddToCart }) {
   const [showBackToTop, setShowBackToTop] = useState(false);
-  const [textVisible, setTextVisible] = useState(false);
-  const textVisibleRef = useRef(false);
-  const readyForSecondScrollRef = useRef(false);
-  const isFirstTouchSwipeRef = useRef(false);
-  const wheelIdleTimerRef = useRef(null);
+  const [heroStage, setHeroStage] = useState(() => (typeof window !== 'undefined' && window.scrollY > 50 ? 3 : 0));
+  const heroStageRef = useRef(typeof window !== 'undefined' && window.scrollY > 50 ? 3 : 0);
   const touchStartYRef = useRef(0);
   const heroRef = useRef(null);
   const mobilePlatillosRef = useRef(null);
@@ -26,42 +23,63 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
   useEffect(() => {
     document.title = "PÚA Brasa y Vino | Inicio — Sabores de Brasa & Cava VIP";
     
+    // Si estamos en la parte superior, bloqueamos overflow para que sea imposible que la pantalla baje sola
+    if (heroStageRef.current < 3) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    }
+
     const handleScroll = () => {
       setShowBackToTop(window.scrollY > 400);
-      if (window.scrollY > 150) {
-        textVisibleRef.current = true;
-        setTextVisible(true);
-        readyForSecondScrollRef.current = true;
+      if (window.scrollY > 100 && heroStageRef.current < 3) {
+        heroStageRef.current = 3;
+        setHeroStage(3);
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
       }
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
 
-    // Wheel: Al hacer el primer scroll, revela el texto y detiene la pantalla.
-    // Solo cuando el usuario detiene ese impulso y hace un nuevo scroll, baja.
+    // Gesto con Rueda / Trackpad
     const handleWheel = (e) => {
-      if (window.scrollY <= 15) {
-        // Si aún no está listo para el segundo scroll:
-        if (!readyForSecondScrollRef.current) {
-          if (e.deltaY > 0) {
-            e.preventDefault();
-            window.scrollTo(0, 0);
+      // Etapa 0: Video solo. En el primer scroll, revela el texto y CONGELA la pantalla ahí
+      if (heroStageRef.current === 0) {
+        if (e.deltaY > 0) {
+          e.preventDefault();
+          window.scrollTo(0, 0);
+          heroStageRef.current = 1; // 1 = revelando y congelado
+          setHeroStage(1);
 
-            if (!textVisibleRef.current) {
-              textVisibleRef.current = true;
-              setTextVisible(true);
-            }
+          setTimeout(() => {
+            heroStageRef.current = 2; // 2 = listo para el segundo scroll
+            setHeroStage(2);
+          }, 800);
+        }
+        return;
+      }
 
-            // Reinicia el temporizador de inactividad mientras continúe el impulso del primer scroll
-            clearTimeout(wheelIdleTimerRef.current);
-            wheelIdleTimerRef.current = setTimeout(() => {
-              // El primer scroll se detuvo por completo. Ahora el próximo scroll sí bajará.
-              readyForSecondScrollRef.current = true;
-            }, 600);
-          }
+      // Etapa 1: Revelando. La pantalla se mantiene 100% congelada
+      if (heroStageRef.current === 1) {
+        e.preventDefault();
+        window.scrollTo(0, 0);
+        return;
+      }
+
+      // Etapa 2: El texto ya está visible y la pantalla está detenida.
+      // Cuando hacen scroll nuevamente, AHORA SÍ baja al resto del sitio.
+      if (heroStageRef.current === 2) {
+        if (e.deltaY > 0) {
+          e.preventDefault();
+          heroStageRef.current = 3; // 3 = desbloqueado
+          setHeroStage(3);
+          document.body.style.overflow = '';
+          document.documentElement.style.overflow = '';
+          document.getElementById('features-section')?.scrollIntoView({ behavior: 'smooth' });
         }
       }
     };
 
+    // Gestos Táctiles en Celular
     const handleTouchStart = (e) => {
       if (e.touches && e.touches[0]) {
         touchStartYRef.current = e.touches[0].clientY;
@@ -73,37 +91,45 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
       const touchY = e.touches[0].clientY;
       const deltaY = touchStartYRef.current - touchY; // > 0 indica deslizar hacia abajo
 
-      if (window.scrollY <= 15) {
-        // En el primer swipe, revela el texto y DETIENE la pantalla por completo
-        if (!readyForSecondScrollRef.current) {
-          if (deltaY > 8) {
-            if (e.cancelable) e.preventDefault();
-            window.scrollTo(0, 0);
+      // Etapa 0: Primer swipe en celular -> revela el texto y detiene la pantalla
+      if (heroStageRef.current === 0) {
+        if (deltaY > 10) {
+          if (e.cancelable) e.preventDefault();
+          window.scrollTo(0, 0);
+          heroStageRef.current = 1;
+          setHeroStage(1);
 
-            if (!textVisibleRef.current) {
-              textVisibleRef.current = true;
-              setTextVisible(true);
-            }
-            isFirstTouchSwipeRef.current = true;
-            return;
-          }
+          setTimeout(() => {
+            heroStageRef.current = 2;
+            setHeroStage(2);
+          }, 800);
         }
+        return;
       }
-    };
 
-    const handleTouchEnd = () => {
-      // Al levantar el dedo del primer swipe, la pantalla queda congelada con el texto.
-      // Ahora se habilita para que el SEGUNDO swipe sí baje a lo demás.
-      if (isFirstTouchSwipeRef.current) {
-        isFirstTouchSwipeRef.current = false;
-        readyForSecondScrollRef.current = true;
+      // Etapa 1: Congelado mientras termina el primer swipe
+      if (heroStageRef.current === 1) {
+        if (e.cancelable) e.preventDefault();
+        window.scrollTo(0, 0);
+        return;
+      }
+
+      // Etapa 2: Segundo swipe en celular -> ahora sí baja
+      if (heroStageRef.current === 2) {
+        if (deltaY > 12) {
+          if (e.cancelable) e.preventDefault();
+          heroStageRef.current = 3;
+          setHeroStage(3);
+          document.body.style.overflow = '';
+          document.documentElement.style.overflow = '';
+          document.getElementById('features-section')?.scrollIntoView({ behavior: 'smooth' });
+        }
       }
     };
 
     window.addEventListener('wheel', handleWheel, { passive: false });
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
-    window.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     // Auto-play continuo del video (PUA BRAND OF)
     const attemptPlay = () => {
@@ -123,13 +149,13 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
     window.addEventListener('touchstart', handleFirstTouch, { once: true });
 
     return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('wheel', handleWheel);
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchstart', handleFirstTouch);
-      clearTimeout(wheelIdleTimerRef.current);
     };
   }, []);
 
@@ -138,15 +164,19 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
   };
 
   const handleExploreClick = () => {
-    if (!textVisibleRef.current) {
-      textVisibleRef.current = true;
-      setTextVisible(true);
-      readyForSecondScrollRef.current = true;
+    if (heroStageRef.current === 0) {
+      heroStageRef.current = 1;
+      setHeroStage(1);
+      setTimeout(() => {
+        heroStageRef.current = 2;
+        setHeroStage(2);
+      }, 800);
     } else {
-      const el = document.getElementById('features-section');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
-      }
+      heroStageRef.current = 3;
+      setHeroStage(3);
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      document.getElementById('features-section')?.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
@@ -291,7 +321,7 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
         {/* GRADIENTE RADIAL SUAVE: DA CONTRASTE AL APARECER EL TEXTO CENTRADO */}
         <div 
           className={`absolute inset-0 pointer-events-none transition-opacity duration-700 ${
-            textVisible ? 'opacity-100' : 'opacity-20'
+            heroStage > 0 ? 'opacity-100' : 'opacity-20'
           }`}
           style={{
             background: 'radial-gradient(circle at center, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.8) 60%, rgba(0,0,0,0.92) 100%)'
@@ -301,7 +331,7 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
         {/* TEXTO CENTRADO: APARECE AL HACER SCROLL Y DETIENE LA PANTALLA */}
         <div 
           className={`relative z-20 max-w-4xl mx-auto text-center transition-all duration-700 ease-out pointer-events-none ${
-            textVisible 
+            heroStage > 0 
               ? 'opacity-100 scale-100 translate-y-0' 
               : 'opacity-0 scale-95 translate-y-6'
           }`}
@@ -322,7 +352,7 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
           className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center justify-center gap-2 cursor-pointer select-none group transition-all duration-500"
         >
           <span className="text-[11px] font-sans uppercase tracking-[0.28em] text-[#d4d3c9] font-medium drop-shadow-[0_2px_8px_rgba(0,0,0,0.95)] group-hover:text-white transition-colors">
-            {textVisible ? 'DESLIZA PARA CONOCER MÁS' : 'DESLIZA PARA EXPLORAR'}
+            {heroStage > 0 ? 'DESLIZA PARA CONOCER MÁS' : 'DESLIZA PARA EXPLORAR'}
           </span>
           <div className="w-8 h-8 rounded-full border border-white/25 bg-black/50 backdrop-blur-md flex items-center justify-center group-hover:border-[#c49a4a] group-hover:scale-110 transition-all shadow-xl animate-bounce">
             <ChevronDown className="w-4 h-4 text-white group-hover:text-[#c49a4a] transition-colors" />
