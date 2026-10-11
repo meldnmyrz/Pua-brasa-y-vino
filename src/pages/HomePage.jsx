@@ -14,9 +14,9 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [textVisible, setTextVisible] = useState(false);
   const textVisibleRef = useRef(false);
-  const canScrollDownRef = useRef(false);
-  const firstSwipeDoneRef = useRef(false);
-  const wheelLockTimerRef = useRef(null);
+  const readyForSecondScrollRef = useRef(false);
+  const isFirstTouchSwipeRef = useRef(false);
+  const wheelIdleTimerRef = useRef(null);
   const touchStartYRef = useRef(0);
   const heroRef = useRef(null);
   const mobilePlatillosRef = useRef(null);
@@ -28,31 +28,36 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
     
     const handleScroll = () => {
       setShowBackToTop(window.scrollY > 400);
-      if (window.scrollY > 100) {
+      if (window.scrollY > 150) {
         textVisibleRef.current = true;
         setTextVisible(true);
-        canScrollDownRef.current = true;
+        readyForSecondScrollRef.current = true;
       }
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
 
-    // Gesto 1: Al hacer scroll aparece el texto centrado y se DETIENE la pantalla ahí.
-    // Gesto 2: Al volver a hacer scroll, ahora sí baja al resto del sitio.
+    // Wheel: Al hacer el primer scroll, revela el texto y detiene la pantalla.
+    // Solo cuando el usuario detiene ese impulso y hace un nuevo scroll, baja.
     const handleWheel = (e) => {
-      if (window.scrollY <= 20 && !canScrollDownRef.current) {
-        if (e.deltaY > 0) {
-          e.preventDefault();
-          window.scrollTo(0, 0);
+      if (window.scrollY <= 15) {
+        // Si aún no está listo para el segundo scroll:
+        if (!readyForSecondScrollRef.current) {
+          if (e.deltaY > 0) {
+            e.preventDefault();
+            window.scrollTo(0, 0);
 
-          if (!textVisibleRef.current) {
-            textVisibleRef.current = true;
-            setTextVisible(true);
+            if (!textVisibleRef.current) {
+              textVisibleRef.current = true;
+              setTextVisible(true);
+            }
+
+            // Reinicia el temporizador de inactividad mientras continúe el impulso del primer scroll
+            clearTimeout(wheelIdleTimerRef.current);
+            wheelIdleTimerRef.current = setTimeout(() => {
+              // El primer scroll se detuvo por completo. Ahora el próximo scroll sí bajará.
+              readyForSecondScrollRef.current = true;
+            }, 600);
           }
-
-          clearTimeout(wheelLockTimerRef.current);
-          wheelLockTimerRef.current = setTimeout(() => {
-            canScrollDownRef.current = true;
-          }, 700);
         }
       }
     };
@@ -68,25 +73,30 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
       const touchY = e.touches[0].clientY;
       const deltaY = touchStartYRef.current - touchY; // > 0 indica deslizar hacia abajo
 
-      if (window.scrollY <= 20 && !canScrollDownRef.current) {
-        if (deltaY > 8) {
-          if (e.cancelable) e.preventDefault();
-          window.scrollTo(0, 0);
+      if (window.scrollY <= 15) {
+        // En el primer swipe, revela el texto y DETIENE la pantalla por completo
+        if (!readyForSecondScrollRef.current) {
+          if (deltaY > 8) {
+            if (e.cancelable) e.preventDefault();
+            window.scrollTo(0, 0);
 
-          if (!textVisibleRef.current) {
-            textVisibleRef.current = true;
-            setTextVisible(true);
+            if (!textVisibleRef.current) {
+              textVisibleRef.current = true;
+              setTextVisible(true);
+            }
+            isFirstTouchSwipeRef.current = true;
+            return;
           }
-          firstSwipeDoneRef.current = true;
-          return;
         }
       }
     };
 
     const handleTouchEnd = () => {
-      // Al soltar el dedo tras revelar el texto, el siguiente swipe sí bajará a lo demás
-      if (textVisibleRef.current && firstSwipeDoneRef.current) {
-        canScrollDownRef.current = true;
+      // Al levantar el dedo del primer swipe, la pantalla queda congelada con el texto.
+      // Ahora se habilita para que el SEGUNDO swipe sí baje a lo demás.
+      if (isFirstTouchSwipeRef.current) {
+        isFirstTouchSwipeRef.current = false;
+        readyForSecondScrollRef.current = true;
       }
     };
 
@@ -95,7 +105,7 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('touchend', handleTouchEnd, { passive: true });
 
-    // Auto-play continuo del video 2 (platillos)
+    // Auto-play continuo del video (PUA BRAND OF)
     const attemptPlay = () => {
       if (mobilePlatillosRef.current) {
         mobilePlatillosRef.current.play().catch(() => {});
@@ -119,7 +129,7 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchstart', handleFirstTouch);
-      clearTimeout(wheelLockTimerRef.current);
+      clearTimeout(wheelIdleTimerRef.current);
     };
   }, []);
 
@@ -131,7 +141,7 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
     if (!textVisibleRef.current) {
       textVisibleRef.current = true;
       setTextVisible(true);
-      canScrollDownRef.current = true;
+      readyForSecondScrollRef.current = true;
     } else {
       const el = document.getElementById('features-section');
       if (el) {
@@ -246,11 +256,11 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
               objectPosition: 'center center',
             }}
           >
-            <source src="/assets/pua-platillos-mobile.mp4" type="video/mp4" />
-            <source src="/pua-platillos-mobile.mp4" type="video/mp4" />
+            <source src="/assets/pua-brand-of.mp4" type="video/mp4" />
+            <source src="/pua-brand-of.mp4" type="video/mp4" />
           </video>
 
-          {/* DESKTOP VIDEO (SOLO PLATILLOS) */}
+          {/* DESKTOP VIDEO (PUA BRAND OF) */}
           <video
             ref={desktopPlatillosRef}
             autoPlay
@@ -273,8 +283,8 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
               objectPosition: 'center center',
             }}
           >
-            <source src="/assets/pua-platillos-desktop.mp4" type="video/mp4" />
-            <source src="/pua-platillos-desktop.mp4" type="video/mp4" />
+            <source src="/assets/pua-brand-of.mp4" type="video/mp4" />
+            <source src="/pua-brand-of.mp4" type="video/mp4" />
           </video>
         </div>
 
