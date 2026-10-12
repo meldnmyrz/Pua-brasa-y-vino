@@ -295,7 +295,7 @@ export default function HomePage({ onOpenItemModal, onAddToCart }) {
         {/* GRADIENTE RADIAL SUAVE: DA CONTRASTE AL APARECER EL TEXTO CENTRADO */}
         <div 
           className={`absolute inset-0 pointer-events-none transition-opacity duration-700 ${
-            heroStage > 0 ? 'opacity-100' : 'opacity-20'
+            textVisible ? 'opacity-100' : 'opacity-20'
           }`}
           style={{
             background: 'radial-gradient(circle at center, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.8) 60%, rgba(0,0,0,0.92) 100%)'
